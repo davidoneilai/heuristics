@@ -76,7 +76,7 @@ CONFIGS = [
     {"id": 2, "pop": 50,  "epoch": 1000},
     {"id": 3, "pop": 100, "epoch": 2000},
 ]
-N_RUNS = 30
+N_RUNS = 1
 COMMON = dict(
     sample_count=25,
     intent_factor=0.5,   # ρ
@@ -106,18 +106,23 @@ def run_job(prob_cls, cfg, seed):
 
 if __name__ == "__main__":            
     all_jobs = []
+    future_to_key = {}  
     with ProcessPoolExecutor(max_workers=mp.cpu_count()) as pool:
         for prob in PROBLEMS:
             for cfg in CONFIGS:
                 for seed in range(N_RUNS):
                     fut = pool.submit(run_job, prob.__class__, cfg, seed)
-                    all_jobs.append((prob.name, cfg["id"], fut))
+                    key = (prob.name, cfg["id"])
+                    future_to_key[fut] = key
+                    all_jobs.append(fut)
 
-        results_map = {}               # chave: (func, cfg_id)  →  listas
-        for prob_name, cfg_id, fut in as_completed([j[2] for j in all_jobs]):
+        results_map = {}  # chave: (func, cfg_id)  →  listas
+        for fut in as_completed(all_jobs):
+            prob_name, cfg_id = future_to_key[fut]
             fitness, hist = fut.result()
             key = (prob_name, cfg_id)
             results_map.setdefault(key, []).append((fitness, hist))
+
         for prob in PROBLEMS:
             for cfg in CONFIGS:
                 key = (prob.name, cfg["id"])
@@ -132,7 +137,7 @@ if __name__ == "__main__":
                 results.append((prob.name, cfg["id"], cfg["pop"], cfg["epoch"],
                                 mean, std, med, cfg_time))
                 print(f"\n### {prob.name} - Config {cfg['id']}  ➜  "
-                    f"mean={mean:.3e}, std={std:.3e}, median={med:.3e}, tempo={cfg_time:.2f}s")
+                      f"mean={mean:.3e}, std={std:.3e}, median={med:.3e}, tempo={cfg_time:.2f}s")
                 best_run = int(np.argmin(best_vals))
                 plt.figure()
                 plt.plot(histories[best_run])
