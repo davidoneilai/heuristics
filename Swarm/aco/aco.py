@@ -17,6 +17,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 from mealpy import FloatVar, Problem, ACOR
+import time
 
 class RotatedElliptic(Problem):
     def __init__(self, n_dims=10, angle=np.pi/4):
@@ -96,9 +97,12 @@ def run_once(problem, cfg, seed=None):
     gbest = model.solve(problem)
     return gbest.target.fitness, model.history.list_global_best_fit
 
+total_start = time.time()
 for prob in PROBLEMS:
     print(f"\n### {prob.name}")
+    func_start = time.time()
     for cfg in CONFIGS:
+        cfg_start = time.time()
         best_vals, histories = [], []
         for r in range(N_RUNS):
             fitness, hist = run_once(prob, cfg, seed=r)
@@ -107,10 +111,11 @@ for prob in PROBLEMS:
         best_vals = np.array(best_vals)
         # estatísticas
         mean, std, med = best_vals.mean(), best_vals.std(ddof=1), np.median(best_vals)
+        cfg_time = time.time() - cfg_start 
         results.append((prob.name, cfg["id"], cfg["pop"], cfg["epoch"],
-                        mean, std, med))
+                        mean, std, med, cfg_time))
         print(f"Config {cfg['id']}  ➜  "
-              f"mean={mean:.3e}, std={std:.3e}, median={med:.3e}")
+              f"mean={mean:.3e}, std={std:.3e}, median={med:.3e}, tempo={cfg_time:.2f}s")
         # gráfico do melhor run
         best_run = int(np.argmin(best_vals))
         plt.figure()
@@ -122,10 +127,15 @@ for prob in PROBLEMS:
         plt.savefig(fname, dpi=150, bbox_inches="tight")
         plt.close()
         print(f"   ↳ curva salva em: {fname}")
+    func_time = time.time() - func_start
+    print(f"Tempo para {prob.name}: {func_time:.2f} segundos")
+
+total_time = time.time() - total_start
+print(f"\nTempo total de execução: {total_time:.2f} segundos")
 
 df = pd.DataFrame(results, columns=[
     "Function", "Cfg", "PopSize", "Epochs",
-    "MeanBest", "StdBest", "MedianBest"
+    "MeanBest", "StdBest", "MedianBest", "Seconds"
 ])
 df.to_csv("acor_summary.csv", index=False)
 print("\nResumo salvo em acor_summary.csv")
