@@ -19,6 +19,7 @@ from pathlib import Path
 from mealpy import FloatVar, Problem, ACOR
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
+import time
 
 class RotatedElliptic(Problem):
     def __init__(self, n_dims=10, angle=np.pi/4):
@@ -98,7 +99,6 @@ def run_once(problem, cfg, seed=None):
     gbest = model.solve(problem)
     return gbest.target.fitness, model.history.list_global_best_fit
 
-
 def run_job(prob_cls, cfg, seed):
     """Cria uma nova instância do problema dentro do processo."""
     prob = prob_cls()                  
@@ -124,29 +124,30 @@ if __name__ == "__main__":
                 data = results_map.get(key, [])
                 if not data:
                     continue
+                cfg_start = time.time()
                 best_vals, histories = zip(*data)
                 best_vals = np.array(best_vals)
-
                 mean, std, med = best_vals.mean(), best_vals.std(ddof=1), np.median(best_vals)
+                cfg_time = time.time() - cfg_start  
                 results.append((prob.name, cfg["id"], cfg["pop"], cfg["epoch"],
-                                mean, std, med))
+                                mean, std, med, cfg_time))
                 print(f"\n### {prob.name} - Config {cfg['id']}  ➜  "
-                    f"mean={mean:.3e}, std={std:.3e}, median={med:.3e}")
+                    f"mean={mean:.3e}, std={std:.3e}, median={med:.3e}, tempo={cfg_time:.2f}s")
                 best_run = int(np.argmin(best_vals))
                 plt.figure()
                 plt.plot(histories[best_run])
                 plt.title(f"{prob.name}\nConfig {cfg['id']}  (best of 30 runs)")
                 plt.xlabel("Epoch"); plt.ylabel("Best fitness")
                 plt.grid()
-                fname = plots_dir / f"{prob.name.replace(' ','_')}_cfg{cfg['id']}.png"
+                fname = plots_dir / f"{prob.name.replace(' ','_')}_cfg{cfg['id']}_parallel_process.png"
                 plt.savefig(fname, dpi=150, bbox_inches="tight")
                 plt.close()
                 print(f"   ↳ curva salva em: {fname}")
 
         df = pd.DataFrame(results, columns=[
             "Function", "Cfg", "PopSize", "Epochs",
-            "MeanBest", "StdBest", "MedianBest"
+            "MeanBest", "StdBest", "MedianBest", "Seconds"
         ])
-        df.to_csv("acor_summary.csv", index=False)
-        print("\nResumo salvo em acor_summary.csv")
+        df.to_csv("acor_summary_parallel_process.csv", index=False)
+        print("\nResumo salvo em acor_summary_parallel_process.csv")
         print(df)
