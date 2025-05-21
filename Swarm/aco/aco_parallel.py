@@ -19,6 +19,7 @@ from pathlib import Path
 from mealpy import FloatVar, Problem, ACOR
 from joblib import Parallel, delayed
 import multiprocessing as mp
+import time
 
 class RotatedElliptic(Problem):
     def __init__(self, n_dims=10, angle=np.pi/4):
@@ -107,17 +108,21 @@ def run_cfg(problem, cfg):
     best_vals, histories = map(list, zip(*out))
     return np.array(best_vals), histories
 
+total_start = time.time()  
+
 for prob in PROBLEMS:
     print(f"\n### {prob.name}")
     for cfg in CONFIGS:
+        cfg_start = time.time() 
         best_vals, histories = run_cfg(prob, cfg)
+        cfg_time = time.time() - cfg_start
         best_vals = np.array(best_vals)
         # estatísticas
         mean, std, med = best_vals.mean(), best_vals.std(ddof=1), np.median(best_vals)
         results.append((prob.name, cfg["id"], cfg["pop"], cfg["epoch"],
-                        mean, std, med))
+                        mean, std, med, cfg_time))
         print(f"Config {cfg['id']}  ➜  "
-              f"mean={mean:.3e}, std={std:.3e}, median={med:.3e}")
+              f"mean={mean:.3e}, std={std:.3e}, median={med:.3e}, tempo={cfg_time:.2f}s")
         # gráfico do melhor run
         best_run = int(np.argmin(best_vals))
         plt.figure()
@@ -125,15 +130,18 @@ for prob in PROBLEMS:
         plt.title(f"{prob.name}\nConfig {cfg['id']}  (best of 30 runs)")
         plt.xlabel("Epoch"); plt.ylabel("Best fitness")
         plt.grid()
-        fname = plots_dir / f"{prob.name.replace(' ','_')}_cfg{cfg['id']}.png"
+        fname = plots_dir / f"{prob.name.replace(' ','_')}_cfg{cfg['id']}_parallel.png"
         plt.savefig(fname, dpi=150, bbox_inches="tight")
         plt.close()
         print(f"   ↳ curva salva em: {fname}")
+        
+total_time = time.time() - total_start
+print(f"\nTempo total de execução: {total_time:.2f} segundos")
 
 df = pd.DataFrame(results, columns=[
     "Function", "Cfg", "PopSize", "Epochs",
-    "MeanBest", "StdBest", "MedianBest"
+    "MeanBest", "StdBest", "MedianBest", "Seconds"
 ])
-df.to_csv("acor_summary.csv", index=False)
-print("\nResumo salvo em acor_summary.csv")
+df.to_csv("acor_summary_parallel.csv", index=False)
+print("\nResumo salvo em acor_summary_parallel.csv")
 print(df)
